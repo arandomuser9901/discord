@@ -1,0 +1,95 @@
+import discord
+from discord.ext import commands
+from collections import defaultdict
+import random
+import aiohttp
+from datetime import datetime
+
+# Initialize bot
+intents = discord.Intents.default()
+intents.reactions = True
+intents.messages = True
+bot = commands.Bot(command_prefix='!', intents=intents)
+
+# Constants
+MAIN_SERVER_ID = 1304998356589740103
+INSTAGRAM_CHANNEL_ID = 1305001583976906853
+TWITTER_CHANNEL_ID = 1305001557548466267
+TIKTOK_CHANNEL_ID = 1305001606198198313
+ARTIST_REGISTRY_CHANNEL_ID = 1305001012356055122
+PROMOTION_SERVER_ID = 1305045714002382918
+WEBHOOK_URL = "https://discord.com/api/webhooks/1305419380733120532/lp_ZRE1vNDldPvuvA9ue2jSlrR_VuPQs6SKQlYcmj0EkHMWBnc7tp4YWH-XPtycdOQpi"
+
+# Data structures
+artists = defaultdict(lambda: {'popularity_points': 0, 'status_points': 0})
+promotions = defaultdict(lambda: {'billboards': {}, 'interviews': {}, 'blogs': {}})
+release_dates = {}
+in_game_date = datetime(1991, 1, 1)
+
+# Function to calculate song stats
+def calculate_song_stats(artist_name):
+    artist_data = artists[artist_name]
+    popularity_points = artist_data['popularity_points']
+    status_points = artist_data['status_points']
+    
+    # Determine the Spotify, Digital Sales, and Radio Play ranges
+    if popularity_points <= 20:
+        spotify_range = (100000, 10000000)
+        digital_sales_range = (0, 4000)
+        radio_play_range = (100000, 4000000)
+    elif 20 < popularity_points <= 30:
+        spotify_range = (5000000, 15000000)
+        digital_sales_range = (500, 7000)
+        radio_play_range = (2000000, 7000000)
+    else:
+        spotify_range = (8000000, 18000000)
+        digital_sales_range = (1000, 8000)
+        radio_play_range = (2000000, 9000000)
+
+    # Apply status point multiplier
+    multiplier = 1 + (status_points * 0.1)
+    spotify = random.randint(*spotify_range) * multiplier
+    digital_sales = random.randint(*digital_sales_range) * multiplier
+    radio_play = random.randint(*radio_play_range) * multiplier
+
+    return {
+        'Spotify': spotify,
+        'Digital Sales': digital_sales,
+        'Radio Play': radio_play
+    }
+
+# Event when bot is ready
+@bot.event
+async def on_ready():
+    print(f'Logged in as {bot.user}')
+
+# Reaction monitoring
+@bot.event
+async def on_reaction_add(reaction, user):
+    if user.bot:
+        return
+
+    channel_id = reaction.message.channel.id
+    if channel_id in [INSTAGRAM_CHANNEL_ID, TWITTER_CHANNEL_ID, TIKTOK_CHANNEL_ID]:
+        artist_name = reaction.message.content.split('\n')[0]  # Assuming first line is artist name
+        if artist_name in artists:
+            unique_users = set()
+            for r in reaction.message.reactions:
+                unique_users.update([u.id for u in await r.users().flatten() if not u.bot])
+            popularity_points = len(unique_users) * 2  # 1 reaction = 2 popularity points
+            artists[artist_name]['popularity_points'] = min(100, artists[artist_name]['popularity_points'] + popularity_points)
+
+# Command to register an artist
+@bot.command()
+async def register_artist(ctx, artist_name: str):
+    if ctx.channel.id == ARTIST_REGISTRY_CHANNEL_ID:
+        artists[artist_name]  # This will create an entry for the artist
+        await ctx.send(f'Artist {artist_name} registered!')
+
+# Command to register a song
+@bot.command()
+async def register_song(ctx, *, song_info: str):
+    # Parse song info and store it
+    # Example format: "# Single Title\n`Artist Name` -\n`Label Name` -\n`Genre` -\n`Length` -\n`Release Date` -"
+    await ctx.send(f'Song registered with info: {song_info}')
+    # Implement song registration
